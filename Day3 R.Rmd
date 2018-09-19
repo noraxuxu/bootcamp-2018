@@ -1,0 +1,108 @@
+---
+title: "Day3R"
+author: "Nora Xu"
+date: "9/19/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE)
+```
+
+
+```{r}
+generation <- read.csv(here::here("data/generation.csv"), stringsAsFactors = F)
+imports <- read.csv(here::here("data/imports.csv"), stringsAsFactors = F)
+str(generation)
+str(imports)
+```
+
+#Datetime class
+```{r}
+library(lubridate)
+class(generation$datetime)
+generation$datetime <- as_datetime(generation$datetime)
+class(generation$datetime)
+
+imports$datetime <- as_datetime(imports$datetime)
+```
+
+#Reshaping data
+```{r}
+library(reshape2)
+long_gen <- melt(generation, id.vars = "datetime", variable.name = "source", value.name = "usage")
+head(long_gen)
+```
+
+#Merging data
+```{r}
+merge_energy <- merge(generation, imports, by = "datetime")
+head(merge_energy)
+```
+
+```{r}
+long_merged_energy <- melt(merge_energy, id.vars = "datetime", , variable.name = "source", value.name = "usage")
+head(long_merged_energy)
+```
+
+```{r}
+library(dplyr)
+tmp <- select(merge_energy, biogas, biomass, geothermal, solar)
+names(tmp)
+
+tmp <- select(merge_energy, contains("hydro"), starts_with("bio")) 
+names(tmp)
+
+tmp <- filter(merge_energy, imports > 7000)
+
+tmp <- mutate(long_merged_energy, log_usage = log(usage))
+
+summarise(long_merged_energy, mean_cons = mean(usage, na.rm = T))
+
+# pipe %>% 
+long_merged_energy %>% 
+  filter(source == "geothermal") %>% 
+  select(-datetime) %>% 
+  mutate(log_usage = log(usage)) %>% 
+  summarize(mean_log_usage = mean(log_usage, na.rm = T))
+```
+
+```{r}
+merge_energy %>% 
+  select(contains("hydro")) %>% 
+  mutate(total_hydro = rowSums(., na.rm = T)) %>% 
+  summarize(mean_usage = mean(total_hydro, na.rm =))
+
+```
+
+```{r}
+merge_energy %>% 
+  select(datetime, contains("hydro"), starts_with("bio")) %>% 
+  melt(id.vars = "datetime", variable.name = "source", value.name = "usage") %>% 
+  group_by(source) %>% 
+  summarise(mean_usage = mean(usage))
+
+long_merged_energy %>% 
+  group_by(source) %>% 
+  summarise(mean_usage=mean(usage)) %>% 
+  select(contains("hydro"), starts_with("bio"))
+```
+
+#Data.table
+```{r}
+library(data.table)
+library(lubridate)
+data_file <- here::here("data/generation.csv")
+generation_df <- read.csv(data_file, stringsAsFactors = F)
+generation_dt <- fread(data_file)
+```
+
+```{r}
+generation_dt[,all_hydro := small_hydro + large_hydro]
+```
+
+```{r}
+generation_dt[, datetime:=as_datetime(datetime)]
+generation_dt[,.(sum_solorwind = solar + wind), by = .(day(datetime), hour(datetime))]
+```
+
